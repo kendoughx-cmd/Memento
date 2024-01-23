@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,26 +7,35 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  Dimensions,
 } from "react-native";
 import moment from "moment";
 import AddButton from "../components/AddButton";
 import Icon from "react-native-vector-icons/MaterialIcons";
 
+const { height: screenHeight } = Dimensions.get("window");
+
 const HomeScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
-  const [selectedPostIndex, setSelectedPostIndex] = useState(null);
+  const [selectedPostIndices, setSelectedPostIndices] = useState([]);
   const [optionsTop, setOptionsTop] = useState(0);
   const flatListRef = useRef(null);
 
   const profileImageUrl =
     "https://th.bing.com/th/id/R.f07e48e3a8878b3e21784bf381e05b37?rik=T8yAUxrwcuMK6g&riu=http%3a%2f%2ftheselfiepost.com%2fwp-content%2fuploads%2f2018%2f07%2fScreen-Shot-2018-01-21-at-122216JPG.jpg&ehk=ZiMb%2fNFudid3ySEX3Y5DVHTDjt1%2bVziq21D0hwa4pNU%3d&risl=&pid=ImgRaw&r=0";
 
+  useEffect(() => {
+    // Initialize the selectedPostIndices array
+    setSelectedPostIndices(new Array(posts.length).fill(false));
+  }, [posts]);
+
   const addPost = useCallback(
     (newPost) => {
       const timestamp = moment().format("MMMM D, YYYY [at] h:mm A");
       setPosts((prevPosts) => [...prevPosts, `${timestamp}\n${newPost}`]);
+      setSelectedPostIndices([...selectedPostIndices, false]);
     },
-    [setPosts]
+    [setPosts, selectedPostIndices, setSelectedPostIndices]
   );
 
   const deletePost = useCallback(
@@ -43,14 +52,16 @@ const HomeScreen = ({ navigation }) => {
             text: "Delete",
             onPress: () => {
               setPosts((prevPosts) => prevPosts.filter((_, i) => i !== index));
-              setSelectedPostIndex(null);
+              setSelectedPostIndices((prevIndices) =>
+                prevIndices.filter((_, i) => i !== index)
+              );
             },
           },
         ],
         { cancelable: false }
       );
     },
-    [setPosts, setSelectedPostIndex]
+    [setPosts, setSelectedPostIndices]
   );
 
   const navigateToEditScreen = useCallback(
@@ -60,9 +71,11 @@ const HomeScreen = ({ navigation }) => {
         currentPostText: posts[index],
         onPostEdit: (editedPostText) => handlePostEdit(index, editedPostText),
       });
-      setSelectedPostIndex(null);
+      setSelectedPostIndices((prevIndices) =>
+        prevIndices.map((_, i) => (i === index ? true : false))
+      );
     },
-    [navigation, posts]
+    [navigation, posts, setSelectedPostIndices]
   );
 
   const handlePostEdit = useCallback(
@@ -70,58 +83,60 @@ const HomeScreen = ({ navigation }) => {
       setPosts((prevPosts) =>
         prevPosts.map((post, i) => (i === index ? editedPostText : post))
       );
-      setSelectedPostIndex(null);
+      setSelectedPostIndices((prevIndices) =>
+        prevIndices.map((_, i) => (i === index ? true : false))
+      );
     },
-    [setPosts, setSelectedPostIndex]
+    [setPosts, setSelectedPostIndices]
   );
 
-  const toggleOptions = useCallback(
-    (index) => {
-      if (selectedPostIndex === index) {
-        // If the same post is clicked again, close the options
-        setSelectedPostIndex(null);
-      } else {
-        // Open the options for the selected post
-        setSelectedPostIndex(index);
-
-        if (index >= 0 && flatListRef.current) {
-          flatListRef.current.scrollToIndex({ index, animated: true });
-
-          setTimeout(() => {
-            if (flatListRef.current) {
-              flatListRef.current.scrollToIndex({ index, animated: true });
-            }
-          }, 300); // Adjust the delay based on your app's performance
-        }
-      }
-    },
-    [selectedPostIndex, setSelectedPostIndex, flatListRef]
-  );
-
-  const handleItemLayout = (event, index) => {
-    if (index === selectedPostIndex) {
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    if (viewableItems.length > 0) {
+      const firstVisibleIndex = viewableItems[0].index;
       const optionsTop =
-        index === posts.length - 1
-          ? event.nativeEvent.layout.y - 120
-          : event.nativeEvent.layout.y + event.nativeEvent.layout.height + 8;
+        firstVisibleIndex === posts.length - 1
+          ? Math.max(viewableItems[0].itemY - 120, 0)
+          : Math.min(
+              viewableItems[0].itemY + viewableItems[0].itemHeight + 8,
+              screenHeight - 120
+            );
 
       setOptionsTop(optionsTop);
     }
-  };
+  });
 
-  const renderOptions = () => {
-    if (selectedPostIndex !== null) {
+  const toggleOptions = useCallback(
+    (index) => {
+      setSelectedPostIndices((prevIndices) =>
+        prevIndices.map((_, i) => (i === index ? !prevIndices[i] : false))
+      );
+
+      if (index >= 0 && flatListRef.current) {
+        flatListRef.current.scrollToIndex({ index, animated: true });
+
+        setTimeout(() => {
+          if (flatListRef.current) {
+            flatListRef.current.scrollToIndex({ index, animated: true });
+          }
+        }, 300); // Adjust the delay based on your app's performance
+      }
+    },
+    [selectedPostIndices, setSelectedPostIndices, flatListRef]
+  );
+
+  const renderOptions = (index) => {
+    if (selectedPostIndices[index]) {
       return (
         <View style={[styles.optionsContainer, { top: optionsTop }]}>
           <TouchableOpacity
             style={styles.optionButton}
-            onPress={() => navigateToEditScreen(selectedPostIndex)}
+            onPress={() => navigateToEditScreen(index)}
           >
             <Text style={styles.optionText}>Edit</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.optionButton}
-            onPress={() => deletePost(selectedPostIndex)}
+            onPress={() => deletePost(index)}
           >
             <Text style={styles.optionText}>Delete</Text>
           </TouchableOpacity>
@@ -147,10 +162,12 @@ const HomeScreen = ({ navigation }) => {
         ref={flatListRef}
         data={posts}
         keyExtractor={(_, index) => index.toString()}
+        onViewableItemsChanged={onViewableItemsChanged.current}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
         ListEmptyComponent={
           <Text style={styles.noPostsText}>No posts yet</Text>
         }
-        renderItem={({ item, index }) => {
+        renderItem={({ item, index, separators }) => {
           const postLines = item.split("\n");
           const timestamp = postLines[0];
           const title = postLines.length > 2 ? postLines[1] : null;
@@ -160,10 +177,7 @@ const HomeScreen = ({ navigation }) => {
             .trim();
 
           return (
-            <View
-              style={styles.postContainer}
-              onLayout={(event) => handleItemLayout(event, index)}
-            >
+            <View style={styles.postContainer}>
               <Text style={styles.timestampText}>{timestamp}</Text>
               {title && <Text style={styles.titleText}>{title}</Text>}
               <View style={styles.postContent}>
@@ -171,7 +185,7 @@ const HomeScreen = ({ navigation }) => {
                 <TouchableOpacity onPress={() => toggleOptions(index)}>
                   <Icon name="more-vert" size={20} color="#333" />
                 </TouchableOpacity>
-                {renderOptions()}
+                {renderOptions(index)}
               </View>
             </View>
           );
@@ -218,8 +232,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     marginBottom: 10,
-    flexDirection: "column",
-    position: "relative",
   },
   titleText: {
     fontSize: 16,
