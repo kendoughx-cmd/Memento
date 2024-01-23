@@ -2,14 +2,12 @@
 import React, { useState, useEffect } from "react";
 import {
   View,
-  Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import Header from "../components/Header";
 import ActionButton from "../components/ActonButton";
 import moment from "moment";
 
@@ -54,17 +52,7 @@ const EditPostScreen = ({ route, navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Icon name="arrow-back" size={24} color="#555" />
-        </TouchableOpacity>
-        <Text style={[styles.headerText, editedTitleStyle]}>
-          Edit Journal Entry
-        </Text>
-      </View>
+      <Header title="Edit Journal Entry" onPress={() => navigation.goBack()} />
 
       <View style={styles.titleContainer}>
         <TextInput

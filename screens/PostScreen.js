@@ -1,15 +1,12 @@
 // PostScreen.js
 import React, { useState } from "react";
 import {
-  View,
-  Text,
   StyleSheet,
-  TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import Header from "../components/Header";
 import ActionButton from "../components/ActonButton";
 
 const PostScreen = ({ route, navigation }) => {
@@ -17,27 +14,23 @@ const PostScreen = ({ route, navigation }) => {
   const [postText, setPostText] = useState("");
 
   const handlePost = () => {
-    const newPost = postTitle ? `${postTitle}\n${postText}` : postText;
-    console.log("Posted:", newPost);
-    route.params.addPost(newPost);
-    navigation.goBack();
+    try {
+      const newPost = postTitle ? `${postTitle}\n${postText}` : postText;
+      console.log("Posted:", newPost);
+      route.params.addPost(newPost);
+      navigation.goBack();
+    } catch (error) {
+      console.error("Error posting:", error.message);
+      // You can show an error message to the user if needed
+    }
   };
-  
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Icon name="arrow-back" size={24} color="#555" />
-        </TouchableOpacity>
-        <Text style={styles.headerText}>New Journal Entry</Text>
-      </View>
+      <Header title="New Journal Entry" onPress={() => navigation.goBack()} />
 
       <TextInput
         style={styles.titleInput}
